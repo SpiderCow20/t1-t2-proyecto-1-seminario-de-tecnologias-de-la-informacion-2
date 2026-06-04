@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Babylon.js - Escena 1: Geometrías y Luces</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        #renderCanvas { width: 100%; height: 100%; display: block; position: fixed; top: 0; left: 0; outline: none; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+
+    <script src="https://cdn.babylonjs.com/babylon.js@6.0.0/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders@6.0.0/babylonjs.loaders.min.js"></script>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('renderCanvas');
+            const engine = new BABYLON.Engine(canvas, true, {
+                preserveDrawingBuffer: true,
+                stencil: true,
+                antialias: true
+            });
+
+            const createScene = function() {
+                const scene = new BABYLON.Scene(engine);
+                scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.18, 1.0);
+                scene.fogMode = BABYLON.Scene.FOGMODE_LINEAR;
+                scene.fogColor = new BABYLON.Color3(0.1, 0.1, 0.18);
+                scene.fogStart = 10;
+                scene.fogEnd = 50;
+
+                // Cámara
+                const camera = new BABYLON.ArcRotateCamera(
+                    "Camera",
+                    -Math.PI / 4,
+                    Math.PI / 3.5,
+                    12,
+                    new BABYLON.Vector3(0, 1.5, 0),
+                    scene
+                );
+                camera.lowerRadiusLimit = 4;
+                camera.upperRadiusLimit = 25;
+                camera.upperBetaLimit = Math.PI / 2.1;
+                camera.lowerBetaLimit = 0.1;
+                camera.minZ = 0.1;
+                camera.maxZ = 100;
+                camera.wheelPrecision = 50;
+                camera.pinchPrecision = 50;
+                camera.attachControl(canvas, true);
+
+                // Luces
+                const hemiLight = new BABYLON.HemisphericLight("hemiLight", new BABYLON.Vector3(0, 1, 0), scene);
+                hemiLight.diffuse = new BABYLON.Color3(0.6, 0.7, 0.9);
+                hemiLight.groundColor = new BABYLON.Color3(0.21, 0.15, 0.07);
+                hemiLight.intensity = 0.8;
+
+                const dirLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -2.5, -1), scene);
+                dirLight.position = new BABYLON.Vector3(5, 10, 5);
+                dirLight.diffuse = new BABYLON.Color3(1, 1, 0.95);
+                dirLight.intensity = 1.2;
+
+                const shadowGenerator = new BABYLON.ShadowGenerator(1024, dirLight);
+                shadowGenerator.useBlurExponentialShadowMap = true;
+                shadowGenerator.blurKernel = 32;
+                shadowGenerator.bias = 0.0001;
+                shadowGenerator.darkness = 0.3;
+
+                // Suelo
+                const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 30, height: 30 }, scene);
+                ground.position.y = -0.5;
+                const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+                groundMat.diffuseColor = new BABYLON.Color3(0.24, 0.24, 0.24);
+                groundMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+                ground.material = groundMat;
+                ground.receiveShadows = true;
+
+                // Rejilla con líneas simples (alternativa a GridMaterial)
+                const gridSize = 30;
+                const step = 1;
+                const lines = [];
+                for (let i = -gridSize/2; i <= gridSize/2; i += step) {
+                    lines.push([new BABYLON.Vector3(i, -0.49, -gridSize/2), new BABYLON.Vector3(i, -0.49, gridSize/2)]);
+                    lines.push([new BABYLON.Vector3(-gridSize/2, -0.49, i), new BABYLON.Vector3(gridSize/2, -0.49, i)]);
+                }
+                const gridSystem = BABYLON.MeshBuilder.CreateLineSystem("grid", { lines: lines, colors: lines.map(() => new BABYLON.Color4(0.4, 0.4, 0.4, 0.3)) }, scene);
+
+                // Objetos
+                const objects = [];
+
+                // 1. Box
+                const box = BABYLON.MeshBuilder.CreateBox("box", { size: 1.5 }, scene);
+                box.position = new BABYLON.Vector3(-3, 0.75, -2);
+                const boxMat = new BABYLON.StandardMaterial("boxMat", scene);
+                boxMat.diffuseColor = new BABYLON.Color3(1, 0.42, 0.42);
+                boxMat.specularColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+                boxMat.specularPower = 32;
+                box.material = boxMat;
+                box.receiveShadows = true;
+                shadowGenerator.addShadowCaster(box);
+                objects.push({ mesh: box, type: 'rotate' });
+
+                // 2. Sphere
+                const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter: 2, segments: 32 }, scene);
+                sphere.position = new BABYLON.Vector3(3, 1, -2);
+                const sphereMat = new BABYLON.StandardMaterial("sphereMat", scene);
+                sphereMat.diffuseColor = new BABYLON.Color3(0.31, 0.8, 0.77);
+                sphereMat.specularColor = new BABYLON.Color3(0.8, 0.8, 0.8);
+                sphereMat.specularPower = 64;
+                sphere.material = sphereMat;
+                sphere.receiveShadows = true;
+                shadowGenerator.addShadowCaster(sphere);
+                objects.push({ mesh: sphere, type: 'bounce', initialY: 1 });
+
+                // 3. Cylinder
+                const cylinder = BABYLON.MeshBuilder.CreateCylinder("cylinder", { height: 2, diameter: 1.6, tessellation: 32 }, scene);
+                cylinder.position = new BABYLON.Vector3(-3, 1, 2);
+                const cylMat = new BABYLON.StandardMaterial("cylMat", scene);
+                cylMat.diffuseColor = new BABYLON.Color3(1, 0.9, 0.42);
+                cylMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+                cylMat.specularPower = 16;
+                cylinder.material = cylMat;
+                cylinder.receiveShadows = true;
+                shadowGenerator.addShadowCaster(cylinder);
+                objects.push({ mesh: cylinder, type: 'rotate' });
+
+                // 4. Torus
+                const torus = BABYLON.MeshBuilder.CreateTorus("torus", { diameter: 2, thickness: 0.8, tessellation: 48 }, scene);
+                torus.position = new BABYLON.Vector3(3, 1, 2);
+                const torusMat = new BABYLON.StandardMaterial("torusMat", scene);
+                torusMat.diffuseColor = new BABYLON.Color3(0.63, 0.42, 0.84);
+                torusMat.specularColor = new BABYLON.Color3(1, 1, 1);
+                torusMat.specularPower = 128;
+                torus.material = torusMat;
+                torus.receiveShadows = true;
+                shadowGenerator.addShadowCaster(torus);
+                objects.push({ mesh: torus, type: 'rotate' });
+
+                // Animación
+                scene.registerBeforeRender(function() {
+                    objects.forEach(function(obj) {
+                        if (obj.type === 'rotate') {
+                            obj.mesh.rotation.y += 0.01;
+                            obj.mesh.rotation.x += 0.005;
+                        } else if (obj.type === 'bounce') {
+                            obj.mesh.position.y = obj.initialY + Math.sin(Date.now() * 0.002) * 0.5;
+                        }
+                    });
+                });
+
+                return scene;
+            };
+
+            const scene = createScene();
+
+            window.addEventListener('resize', function() {
+                engine.resize();
+            });
+            window.addEventListener('orientationchange', function() {
+                engine.resize();
+            });
+
+            engine.runRenderLoop(function() {
+                scene.render();
+            });
+            engine.resize();
+
+            console.log('✅ Escena 1 Babylon.js funcionando correctamente');
+        })();
+    </script>
+</body>
+</html>

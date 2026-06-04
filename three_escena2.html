@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js - Escena 2: Assets Externos</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Cargando assets... ⌛</div>
+    <div id="info" style="display: none;">Modelo GLTF | Animación activa | Textura aplicada</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // ============ CONFIGURACIÓN INICIAL ============
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a1a);
+
+        // ============ CÁMARA ============
+        const camera = new THREE.PerspectiveCamera(
+            45, // FOV
+            window.innerWidth / window.innerHeight, // Aspect Ratio
+            0.1, // Near clipping plane
+            100 // Far clipping plane
+        );
+        camera.position.set(5, 4, 8);
+        camera.lookAt(0, 1.5, 0);
+
+        // ============ RENDERER ============
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // ============ MANEJO DE RESIZE ============
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ============ ORBIT CONTROLS ============
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 3;
+        controls.maxDistance = 15;
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.target.set(0, 1.5, 0);
+
+        // ============ ENVIRONMENT MAP ============
+        const cubeTextureLoader = new THREE.CubeTextureLoader();
+        const environmentMap = cubeTextureLoader.load([
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/px.jpg',
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nx.jpg',
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/py.jpg',
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/ny.jpg',
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/pz.jpg',
+            'https://threejs.org/examples/textures/cube/SwedishRoyalCastle/nz.jpg',
+        ]);
+        scene.environment = environmentMap;
+        scene.background = environmentMap;
+        scene.backgroundIntensity = 0.3;
+
+        // ============ LUCES ============
+        // Luz ambiental
+        const ambientLight = new THREE.AmbientLight(0x404080, 0.5);
+        scene.add(ambientLight);
+
+        // Luz direccional principal
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2);
+        mainLight.position.set(5, 8, 5);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.camera.near = 0.5;
+        mainLight.shadow.camera.far = 50;
+        mainLight.shadow.camera.left = -10;
+        mainLight.shadow.camera.right = 10;
+        mainLight.shadow.camera.top = 10;
+        mainLight.shadow.camera.bottom = -10;
+        mainLight.shadow.bias = -0.0001;
+        scene.add(mainLight);
+
+        // Luz de relleno
+        const fillLight = new THREE.DirectionalLight(0x4466ff, 0.8);
+        fillLight.position.set(-3, 2, -3);
+        scene.add(fillLight);
+
+        // ============ SUELO CON TEXTURA ============
+        const textureLoader = new THREE.TextureLoader();
+        
+        // Cargar textura para el suelo
+        const floorTexture = textureLoader.load(
+            'https://threejs.org/examples/textures/hardwood2_diffuse.jpg',
+            () => {},
+            undefined,
+            (error) => console.error('Error cargando textura:', error)
+        );
+        floorTexture.wrapS = THREE.RepeatWrapping;
+        floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(4, 4);
+        floorTexture.colorSpace = THREE.SRGBColorSpace;
+
+        const floorMaterial = new THREE.MeshStandardMaterial({
+            map: floorTexture,
+            roughness: 0.4,
+            metalness: 0.1
+        });
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // ============ CUBO CON TEXTURA ============
+        const boxTexture = textureLoader.load(
+            'https://threejs.org/examples/textures/crate.gif',
+            () => {},
+            undefined,
+            (error) => console.error('Error cargando textura del cubo:', error)
+        );
+        boxTexture.colorSpace = THREE.SRGBColorSpace;
+        boxTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        boxTexture.magFilter = THREE.LinearFilter;
+        
+        const boxMaterial = new THREE.MeshStandardMaterial({
+            map: boxTexture,
+            roughness: 0.5,
+            metalness: 0.1
+        });
+
+        const texturedBox = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), boxMaterial);
+        texturedBox.position.set(2.5, 0.75, -2);
+        texturedBox.castShadow = true;
+        texturedBox.receiveShadow = true;
+        texturedBox.name = 'TexturedBox';
+        scene.add(texturedBox);
+
+        // ============ CARGA DE MODELO GLTF/GLB ============
+        const gltfLoader = new GLTFLoader();
+        let mixer = null;
+        let modelAnimations = [];
+        let currentModel = null;
+
+        // Cargar modelo de ejemplo (Robot de Three.js)
+        gltfLoader.load(
+            'https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb',
+            (gltf) => {
+                console.log('✅ Modelo GLTF cargado exitosamente');
+                
+                const model = gltf.scene;
+                model.position.set(-1.5, 0.5, 0);
+                model.scale.set(0.8, 0.8, 0.8);
+                
+                // Configurar sombras
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        
+                        // Aplicar environment map a todos los materiales
+                        if (child.material) {
+                            child.material.envMap = environmentMap;
+                            child.material.envMapIntensity = 0.5;
+                            child.material.needsUpdate = true;
+                        }
+                    }
+                });
+
+                scene.add(model);
+                currentModel = model;
+
+                // Configurar AnimationMixer
+                if (gltf.animations && gltf.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(model);
+                    modelAnimations = gltf.animations;
+                    
+                    // Reproducir la primera animación disponible
+                    const action = mixer.clipAction(modelAnimations[0]);
+                    action.play();
+                    
+                    console.log(`🎬 ${modelAnimations.length} animación(es) disponible(s)`);
+                    console.log('▶️ Animación en reproducción:', modelAnimations[0].name);
+                }
+
+                // Ocultar pantalla de carga
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('info').style.display = 'block';
+            },
+            (progress) => {
+                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                document.getElementById('loading').innerHTML = 
+                    `Cargando modelo... ${percent}% ⌛`;
+            },
+            (error) => {
+                console.error('❌ Error cargando el modelo GLTF:', error);
+                document.getElementById('loading').innerHTML = 
+                    'Error al cargar el modelo. Revisa la consola. 😞';
+                
+                // Crear un objeto alternativo si falla la carga
+                const fallbackGeo = new THREE.CylinderGeometry(0.8, 0.8, 2.5, 8);
+                const fallbackMat = new THREE.MeshStandardMaterial({ 
+                    color: 0xff6b6b,
+                    roughness: 0.3,
+                    metalness: 0.5,
+                    envMap: environmentMap
+                });
+                const fallbackMesh = new THREE.Mesh(fallbackGeo, fallbackMat);
+                fallbackMesh.position.set(-1.5, 1.25, 0);
+                fallbackMesh.castShadow = true;
+                fallbackMesh.receiveShadow = true;
+                scene.add(fallbackMesh);
+                currentModel = fallbackMesh;
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('info').style.display = 'block';
+            }
+        );
+
+        // ============ PARTÍCULAS DE AMBIENTE ============
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particlesCount = 500;
+        const posArray = new Float32Array(particlesCount * 3);
+        
+        for (let i = 0; i < particlesCount * 3; i += 3) {
+            posArray[i] = (Math.random() - 0.5) * 15;
+            posArray[i + 1] = Math.random() * 8;
+            posArray[i + 2] = (Math.random() - 0.5) * 15;
+        }
+        
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        
+        const particlesMaterial = new THREE.PointsMaterial({
+            size: 0.02,
+            color: 0x88aaff,
+            transparent: true,
+            blending: THREE.AdditiveBlending
+        });
+        
+        const particles = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particles);
+
+        // ============ ANIMACIÓN ============
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            const elapsedTime = clock.getElapsedTime();
+
+            // Actualizar mixer de animación
+            if (mixer) {
+                mixer.update(deltaTime);
+            }
+
+            // Rotar el cubo texturizado
+            if (texturedBox) {
+                texturedBox.rotation.x += 0.005;
+                texturedBox.rotation.y += 0.01;
+            }
+
+            // Animar partículas
+            particles.rotation.y += 0.0002;
+            particles.position.y = Math.sin(elapsedTime * 0.3) * 0.5;
+
+            // Actualizar controles
+            controls.update();
+
+            // Renderizar
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // ============ CAMBIAR ANIMACIONES (Teclas 1-5) ============
+        window.addEventListener('keydown', (event) => {
+            if (!mixer || modelAnimations.length === 0) return;
+            
+            const key = parseInt(event.key);
+            if (key >= 1 && key <= modelAnimations.length) {
+                mixer.stopAllAction();
+                const action = mixer.clipAction(modelAnimations[key - 1]);
+                action.play();
+                console.log(`🎬 Reproduciendo animación ${key}: ${modelAnimations[key - 1].name}`);
+            }
+        });
+
+        console.log('🎮 Controles: OrbitControls activos | Teclas 1-N para cambiar animaciones');
+        console.log('✅ Escena 2 Three.js lista - Texturas, modelo GLTF y animaciones');
+    </script>
+</body>
+</html>

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jerarquías 3D Articuladas - Babylon.js</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            z-index: 10;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 30;
+        }
+        .controls-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            pointer-events: auto;
+            z-index: 30;
+            min-width: 220px;
+            backdrop-filter: blur(5px);
+            border: 1px solid #444;
+        }
+        .controls-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #ffaa44;
+        }
+        .controls-panel select {
+            width: 100%;
+            margin-bottom: 12px;
+            padding: 6px;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .controls-panel .control-group {
+            margin-bottom: 12px;
+        }
+        .controls-panel label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 11px;
+            color: #ccc;
+        }
+        .controls-panel input {
+            width: 100%;
+            cursor: pointer;
+            background: #333;
+            accent-color: #ffaa44;
+        }
+        button {
+            width: 100%;
+            padding: 6px;
+            margin-top: 5px;
+            cursor: pointer;
+            background: #ffaa44;
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #ffcc66;
+        }
+        .note {
+            font-size: 10px;
+            margin-top: 10px;
+            color: #aaa;
+            text-align: center;
+            border-top: 1px solid #444;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <strong>🏗️ Jerarquías 3D Articuladas - Babylon.js</strong><br>
+        Brazo Robótico | Sistema Solar | Tiburón Articulado
+    </div>
+    <div class="controls-panel">
+        <h3>🎮 Control de Escenas</h3>
+        <select id="scene-selector">
+            <option value="robot">🤖 Brazo Robótico Articulado</option>
+            <option value="solar">🌞 Sistema Solar</option>
+            <option value="shark">🦈 Tiburón Articulado</option>
+        </select>
+        
+        <div id="robot-controls" class="control-group">
+            <h4 style="margin:0 0 8px 0; font-size:12px;">🦾 Ángulos (grados)</h4>
+            <label>Base: <input type="range" id="base-angle" min="-180" max="180" step="1" value="0"></label>
+            <label>Hombro: <input type="range" id="shoulder-angle" min="-90" max="90" step="1" value="30"></label>
+            <label>Codo: <input type="range" id="elbow-angle" min="-135" max="0" step="1" value="-60"></label>
+            <label>Muñeca: <input type="range" id="wrist-angle" min="-90" max="90" step="1" value="20"></label>
+            <label>Dedo 1: <input type="range" id="finger1-angle" min="0" max="90" step="1" value="30"></label>
+            <label>Dedo 2: <input type="range" id="finger2-angle" min="0" max="90" step="1" value="30"></label>
+            <button id="reset-robot">⟳ Resetear</button>
+        </div>
+        
+        <div id="solar-controls" class="control-group" style="display:none;">
+            <h4 style="margin:0 0 8px 0; font-size:12px;">🌍 Velocidad Orbital</h4>
+            <label>Velocidad global: <input type="range" id="orbit-speed" min="0" max="2" step="0.01" value="0.5"></label>
+            <div style="font-size:10px; margin-top:5px;">
+                🪐 Planetas orbitan el Sol<br>
+                🌙 Lunas orbitan sus planetas
+            </div>
+        </div>
+        
+        <div id="shark-controls" class="control-group" style="display:none;">
+            <h4 style="margin:0 0 8px 0; font-size:12px;">🦈 Animación Natación</h4>
+            <label>Velocidad: <input type="range" id="swim-speed" min="0" max="2" step="0.01" value="1.0"></label>
+            <div style="font-size:10px; margin-top:5px;">🎮 Movimiento ondulatorio continuo</div>
+        </div>
+        <div class="note">✨ Rotación en ejes locales | Animación cíclica automática</div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    
+    <script>
+        (function() {
+            // --- Configuración inicial de Babylon ---
+            const canvas = document.createElement("canvas");
+            canvas.style.width = "100%";
+            canvas.style.height = "100%";
+            canvas.style.display = "block";
+            document.body.appendChild(canvas);
+            
+            const engine = new BABYLON.Engine(canvas, true);
+            
+            // Crear escena con fondo oscuro
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color3(0.05, 0.08, 0.15);
+            
+            // --- Cámara con controles de órbita ---
+            const camera = new BABYLON.ArcRotateCamera("camera", -Math.PI / 3, Math.PI / 4, 12, new BABYLON.Vector3(0, 1.5, 0), scene);
+            camera.attachControl(canvas, true);
+            camera.lowerRadiusLimit = 3;
+            camera.upperRadiusLimit = 20;
+            camera.wheelPrecision = 50;
+            
+            // --- Luces ---
+            const ambientLight = new BABYLON.HemisphericLight("ambient", new BABYLON.Vector3(0, 1, 0), scene);
+            ambientLight.intensity = 0.6;
+            ambientLight.groundColor = new BABYLON.Color3(0.2, 0.2, 0.3);
+            
+            const dirLight = new BABYLON.DirectionalLight("dirLight", new BABYLON.Vector3(-1, -2, -1), scene);
+            dirLight.intensity = 0.8;
+            dirLight.position = new BABYLON.Vector3(5, 10, 5);
+            
+            const fillLight = new BABYLON.PointLight("fillLight", new BABYLON.Vector3(0, -2, 0), scene);
+            fillLight.intensity = 0.3;
+            
+            const rimLight = new BABYLON.PointLight("rimLight", new BABYLON.Vector3(-3, 4, -5), scene);
+            rimLight.intensity = 0.4;
+            
+            // --- Grid helper (suelo) - Usando GridMaterial de la librería de materiales ---
+            const gridMaterial = new BABYLON.GridMaterial("grid", scene);
+            gridMaterial.mainColor = new BABYLON.Color3(0.3, 0.4, 0.6);
+            gridMaterial.lineColor = new BABYLON.Color3(0.5, 0.6, 0.8);
+            gridMaterial.opacity = 0.3;
+            const groundPlane = BABYLON.MeshBuilder.CreatePlane("ground", { width: 20, height: 20 }, scene);
+            groundPlane.material = gridMaterial;
+            groundPlane.position.y = -1.5;
+            groundPlane.rotation.x = -Math.PI / 2;
+            
+            // --- Variables globales ---
+            let currentSceneGroup = null;
+            let activeRobot = null;
+            let activeSolar = null;
+            let activeShark = null;
+            let currentType = 'robot';
+            
+            // Elementos UI
+            const selector = document.getElementById('scene-selector');
+            const robotDiv = document.getElementById('robot-controls');
+            const solarDiv = document.getElementById('solar-controls');
+            const sharkDiv = document.getElementById('shark-controls');
+            
+            // Sliders robot
+            const baseSlider = document.getElementById('base-angle');
+            const shoulderSlider = document.getElementById('shoulder-angle');
+            const elbowSlider = document.getElementById('elbow-angle');
+            const wristSlider = document.getElementById('wrist-angle');
+            const finger1Slider = document.getElementById('finger1-angle');
+            const finger2Slider = document.getElementById('finger2-angle');
+            const resetBtn = document.getElementById('reset-robot');
+            
+            // Solar speed
+            const orbitSpeedSlider = document.getElementById('orbit-speed');
+            // Shark speed
+            const swimSpeedSlider = document.getElementById('swim-speed');
+            
+            // --- Función para limpiar escena ---
+            function clearScene() {
+                if (currentSceneGroup) {
+                    currentSceneGroup.dispose();
+                    currentSceneGroup = null;
+                }
+                activeRobot = null;
+                activeSolar = null;
+                activeShark = null;
+            }
+            
+            // ===================== A: BRAZO ROBÓTICO ARTICULADO =====================
+            function createRobotArm() {
+                const group = new BABYLON.TransformNode("robotGroup", scene);
+                
+                const metalMat = new BABYLON.StandardMaterial("metal", scene);
+                metalMat.diffuseColor = new BABYLON.Color3(0.53, 0.66, 0.9);
+                metalMat.specularColor = new BABYLON.Color3(0.8, 0.8, 0.9);
+                
+                const darkMetalMat = new BABYLON.StandardMaterial("darkMetal", scene);
+                darkMetalMat.diffuseColor = new BABYLON.Color3(0.33, 0.44, 0.55);
+                
+                const jointMat = new BABYLON.StandardMaterial("joint", scene);
+                jointMat.diffuseColor = new BABYLON.Color3(0.9, 0.7, 0.4);
+                
+                const baseGeo = BABYLON.MeshBuilder.CreateCylinder("base", { height: 0.6, diameterTop: 1.2, diameterBottom: 1.5 }, scene);
+                baseGeo.material = metalMat;
+                baseGeo.position.y = -0.8;
+                baseGeo.parent = group;
+                
+                const baseJoint = new BABYLON.TransformNode("baseJoint", scene);
+                baseJoint.position.y = -0.5;
+                baseJoint.parent = group;
+                
+                const baseRotator = BABYLON.MeshBuilder.CreateCylinder("baseRotator", { height: 0.3, diameter: 0.9 }, scene);
+                baseRotator.material = jointMat;
+                baseRotator.parent = baseJoint;
+                
+                const shoulderGroup = new BABYLON.TransformNode("shoulder", scene);
+                shoulderGroup.position.y = 0.2;
+                shoulderGroup.parent = baseJoint;
+                
+                const shoulderMesh = BABYLON.MeshBuilder.CreateBox("shoulderMesh", { width: 1.2, height: 0.4, depth: 1.2 }, scene);
+                shoulderMesh.material = darkMetalMat;
+                shoulderMesh.parent = shoulderGroup;
+                
+                const upperArm = BABYLON.MeshBuilder.CreateBox("upperArm", { width: 0.8, height: 1.2, depth: 0.8 }, scene);
+                upperArm.material = metalMat;
+                upperArm.position.y = 0.8;
+                upperArm.parent = shoulderGroup;
+                
+                const elbowGroup = new BABYLON.TransformNode("elbow", scene);
+                elbowGroup.position.y = 1.4;
+                elbowGroup.parent = shoulderGroup;
+                
+                const elbowJoint = BABYLON.MeshBuilder.CreateSphere("elbowJoint", { diameter: 0.5 }, scene);
+                elbowJoint.material = jointMat;
+                elbowJoint.parent = elbowGroup;
+                
+                const forearm = BABYLON.MeshBuilder.CreateBox("forearm", { width: 0.7, height: 1.0, depth: 0.7 }, scene);
+                forearm.material = metalMat;
+                forearm.position.y = 0.6;
+                forearm.parent = elbowGroup;
+                
+                const wristGroup = new BABYLON.TransformNode("wrist", scene);
+                wristGroup.position.y = 1.1;
+                wristGroup.parent = elbowGroup;
+                
+                const wristJoint = BABYLON.MeshBuilder.CreateSphere("wristJoint", { diameter: 0.4 }, scene);
+                wristJoint.material = jointMat;
+                wristJoint.parent = wristGroup;
+                
+                const hand = BABYLON.MeshBuilder.CreateBox("hand", { width: 0.6, height: 0.4, depth: 0.8 }, scene);
+                hand.material = darkMetalMat;
+                hand.position.y = 0.25;
+                hand.parent = wristGroup;
+                
+                const finger1Group = new BABYLON.TransformNode("finger1", scene);
+                finger1Group.position = new BABYLON.Vector3(0.25, 0.45, 0.35);
+                finger1Group.parent = wristGroup;
+                const finger1 = BABYLON.MeshBuilder.CreateBox("finger1", { width: 0.2, height: 0.15, depth: 0.5 }, scene);
+                finger1.material = metalMat;
+                finger1.position.y = 0.1;
+                finger1.parent = finger1Group;
+                
+                const finger2Group = new BABYLON.TransformNode("finger2", scene);
+                finger2Group.position = new BABYLON.Vector3(-0.25, 0.45, 0.35);
+                finger2Group.parent = wristGroup;
+                const finger2 = BABYLON.MeshBuilder.CreateBox("finger2", { width: 0.2, height: 0.15, depth: 0.5 }, scene);
+                finger2.material = metalMat;
+                finger2.position.y = 0.1;
+                finger2.parent = finger2Group;
+                
+                return {
+                    group: group,
+                    parts: {
+                        baseJoint: baseJoint,
+                        shoulderGroup: shoulderGroup,
+                        elbowGroup: elbowGroup,
+                        wristGroup: wristGroup,
+                        finger1Group: finger1Group,
+                        finger2Group: finger2Group
+                    }
+                };
+            }
+            
+            // ===================== B: SISTEMA SOLAR =====================
+            function createSolarSystem() {
+                const group = new BABYLON.TransformNode("solarGroup", scene);
+                
+                const sunMat = new BABYLON.StandardMaterial("sunMat", scene);
+                sunMat.diffuseColor = new BABYLON.Color3(1, 0.8, 0.3);
+                sunMat.emissiveColor = new BABYLON.Color3(0.8, 0.4, 0.1);
+                
+                const planetMat1 = new BABYLON.StandardMaterial("planet1", scene);
+                planetMat1.diffuseColor = new BABYLON.Color3(0.53, 0.66, 0.9);
+                const planetMat2 = new BABYLON.StandardMaterial("planet2", scene);
+                planetMat2.diffuseColor = new BABYLON.Color3(0.9, 0.7, 0.5);
+                const planetMat3 = new BABYLON.StandardMaterial("planet3", scene);
+                planetMat3.diffuseColor = new BABYLON.Color3(0.5, 0.9, 0.7);
+                const moonMat = new BABYLON.StandardMaterial("moon", scene);
+                moonMat.diffuseColor = new BABYLON.Color3(0.7, 0.7, 0.7);
+                
+                const sun = BABYLON.MeshBuilder.CreateSphere("sun", { diameter: 3 }, scene);
+                sun.material = sunMat;
+                sun.parent = group;
+                
+                const planet1Orbit = new BABYLON.TransformNode("p1Orbit", scene);
+                planet1Orbit.parent = group;
+                const planet1 = BABYLON.MeshBuilder.CreateSphere("planet1", { diameter: 0.8 }, scene);
+                planet1.material = planetMat1;
+                planet1.position = new BABYLON.Vector3(3.2, 0, 0);
+                planet1.parent = planet1Orbit;
+                
+                const moon1Orbit = new BABYLON.TransformNode("m1Orbit", scene);
+                moon1Orbit.parent = planet1;
+                const moon1 = BABYLON.MeshBuilder.CreateSphere("moon1", { diameter: 0.24 }, scene);
+                moon1.material = moonMat;
+                moon1.position = new BABYLON.Vector3(0.8, 0, 0);
+                moon1.parent = moon1Orbit;
+                
+                const planet2Orbit = new BABYLON.TransformNode("p2Orbit", scene);
+                planet2Orbit.parent = group;
+                const planet2 = BABYLON.MeshBuilder.CreateSphere("planet2", { diameter: 1.1 }, scene);
+                planet2.material = planetMat2;
+                planet2.position = new BABYLON.Vector3(5.0, 0, 0);
+                planet2.parent = planet2Orbit;
+                
+                const moon2aOrbit = new BABYLON.TransformNode("m2aOrbit", scene);
+                moon2aOrbit.parent = planet2;
+                const moon2a = BABYLON.MeshBuilder.CreateSphere("moon2a", { diameter: 0.26 }, scene);
+                moon2a.material = moonMat;
+                moon2a.position = new BABYLON.Vector3(1.0, 0, 0);
+                moon2a.parent = moon2aOrbit;
+                
+                const moon2bOrbit = new BABYLON.TransformNode("m2bOrbit", scene);
+                moon2bOrbit.parent = planet2;
+                const moon2b = BABYLON.MeshBuilder.CreateSphere("moon2b", { diameter: 0.22 }, scene);
+                moon2b.material = moonMat;
+                moon2b.position = new BABYLON.Vector3(1.3, 0, 0);
+                moon2b.parent = moon2bOrbit;
+                
+                const planet3Orbit = new BABYLON.TransformNode("p3Orbit", scene);
+                planet3Orbit.parent = group;
+                const planet3 = BABYLON.MeshBuilder.CreateSphere("planet3", { diameter: 0.96 }, scene);
+                planet3.material = planetMat3;
+                planet3.position = new BABYLON.Vector3(6.8, 0, 0);
+                planet3.parent = planet3Orbit;
+                
+                const moon3Orbit = new BABYLON.TransformNode("m3Orbit", scene);
+                moon3Orbit.parent = planet3;
+                const moon3 = BABYLON.MeshBuilder.CreateSphere("moon3", { diameter: 0.28 }, scene);
+                moon3.material = moonMat;
+                moon3.position = new BABYLON.Vector3(1.1, 0, 0);
+                moon3.parent = moon3Orbit;
+                
+                const orbitRadii = [3.2, 5.0, 6.8];
+                orbitRadii.forEach(radius => {
+                    const points = [];
+                    for (let i = 0; i <= 100; i++) {
+                        const angle = (i / 100) * Math.PI * 2;
+                        points.push(new BABYLON.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius));
+                    }
+                    const orbitLine = BABYLON.MeshBuilder.CreateLines("orbit", { points: points }, scene);
+                    orbitLine.color = new BABYLON.Color3(0.4, 0.6, 0.9);
+                    orbitLine.parent = group;
+                });
+                
+                return {
+                    group: group,
+                    planets: {
+                        planet1Orbit, planet2Orbit, planet3Orbit,
+                        moon1Orbit, moon2aOrbit, moon2bOrbit, moon3Orbit
+                    }
+                };
+            }
+            
+            // ===================== C: TIBURÓN ARTICULADO =====================
+            function createShark() {
+                const group = new BABYLON.TransformNode("sharkGroup", scene);
+                group.position.y = -0.5;
+                
+                const bodyMat = new BABYLON.StandardMaterial("bodyMat", scene);
+                bodyMat.diffuseColor = new BABYLON.Color3(0.29, 0.43, 0.55);
+                
+                const finMat = new BABYLON.StandardMaterial("finMat", scene);
+                finMat.diffuseColor = new BABYLON.Color3(0.23, 0.35, 0.45);
+                
+                const body = BABYLON.MeshBuilder.CreateCylinder("body", { height: 1.4, diameterTop: 0.6, diameterBottom: 0.8 }, scene);
+                body.material = bodyMat;
+                body.rotation.x = Math.PI / 2;
+                body.parent = group;
+                
+                const headGroup = new BABYLON.TransformNode("head", scene);
+                headGroup.position.z = 0.75;
+                headGroup.parent = group;
+                const head = BABYLON.MeshBuilder.CreateCylinder("head", { height: 0.8, diameterTop: 0.65, diameterBottom: 0.55 }, scene);
+                head.material = bodyMat;
+                head.rotation.x = Math.PI / 2;
+                head.parent = headGroup;
+                
+                const eyeMat = new BABYLON.StandardMaterial("eyeMat", scene);
+                eyeMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+                const pupilMat = new BABYLON.StandardMaterial("pupilMat", scene);
+                pupilMat.diffuseColor = new BABYLON.Color3(0, 0, 0);
+                
+                const leftEye = BABYLON.MeshBuilder.CreateSphere("leftEye", { diameter: 0.24 }, scene);
+                leftEye.material = eyeMat;
+                leftEye.position = new BABYLON.Vector3(-0.35, 0.2, 0.45);
+                leftEye.parent = headGroup;
+                const leftPupil = BABYLON.MeshBuilder.CreateSphere("leftPupil", { diameter: 0.14 }, scene);
+                leftPupil.material = pupilMat;
+                leftPupil.position = new BABYLON.Vector3(-0.35, 0.2, 0.52);
+                leftPupil.parent = headGroup;
+                
+                const rightEye = BABYLON.MeshBuilder.CreateSphere("rightEye", { diameter: 0.24 }, scene);
+                rightEye.material = eyeMat;
+                rightEye.position = new BABYLON.Vector3(0.35, 0.2, 0.45);
+                rightEye.parent = headGroup;
+                const rightPupil = BABYLON.MeshBuilder.CreateSphere("rightPupil", { diameter: 0.14 }, scene);
+                rightPupil.material = pupilMat;
+                rightPupil.position = new BABYLON.Vector3(0.35, 0.2, 0.52);
+                rightPupil.parent = headGroup;
+                
+                const dorsalFin = BABYLON.MeshBuilder.CreateCylinder("dorsal", { height: 0.5, diameterTop: 0, diameterBottom: 0.5 }, scene);
+                dorsalFin.material = finMat;
+                dorsalFin.position = new BABYLON.Vector3(0, 0.45, -0.2);
+                dorsalFin.parent = group;
+                
+                const tailGroup = new BABYLON.TransformNode("tail", scene);
+                tailGroup.position.z = -0.85;
+                tailGroup.parent = group;
+                const tailFin = BABYLON.MeshBuilder.CreateCylinder("tailFin", { height: 0.9, diameterTop: 0.5, diameterBottom: 0 }, scene);
+                tailFin.material = finMat;
+                tailFin.rotation.z = Math.PI / 2;
+                tailFin.parent = tailGroup;
+                
+                const leftFinGroup = new BABYLON.TransformNode("leftFin", scene);
+                leftFinGroup.position = new BABYLON.Vector3(-0.65, 0.1, -0.2);
+                leftFinGroup.parent = group;
+                const leftFin = BABYLON.MeshBuilder.CreateCylinder("leftFinShape", { height: 0.6, diameterTop: 0.15, diameterBottom: 0.25 }, scene);
+                leftFin.material = finMat;
+                leftFin.rotation.z = 0.8;
+                leftFin.parent = leftFinGroup;
+                
+                const rightFinGroup = new BABYLON.TransformNode("rightFin", scene);
+                rightFinGroup.position = new BABYLON.Vector3(0.65, 0.1, -0.2);
+                rightFinGroup.parent = group;
+                const rightFin = BABYLON.MeshBuilder.CreateCylinder("rightFinShape", { height: 0.6, diameterTop: 0.15, diameterBottom: 0.25 }, scene);
+                rightFin.material = finMat;
+                rightFin.rotation.z = -0.8;
+                rightFin.parent = rightFinGroup;
+                
+                return {
+                    group: group,
+                    joints: {
+                        head: headGroup,
+                        tail: tailGroup,
+                        leftFin: leftFinGroup,
+                        rightFin: rightFinGroup
+                    }
+                };
+            }
+            
+            // --- Funciones de actualización ---
+            function updateRobotFromSliders() {
+                if (!activeRobot) return;
+                const p = activeRobot.parts;
+                p.baseJoint.rotation.y = (parseFloat(baseSlider.value) * Math.PI) / 180;
+                p.shoulderGroup.rotation.x = (parseFloat(shoulderSlider.value) * Math.PI) / 180;
+                p.elbowGroup.rotation.x = (parseFloat(elbowSlider.value) * Math.PI) / 180;
+                p.wristGroup.rotation.x = (parseFloat(wristSlider.value) * Math.PI) / 180;
+                p.finger1Group.rotation.x = (parseFloat(finger1Slider.value) * Math.PI) / 180;
+                p.finger2Group.rotation.x = (parseFloat(finger2Slider.value) * Math.PI) / 180;
+            }
+            
+            function resetRobot() {
+                baseSlider.value = 0;
+                shoulderSlider.value = 30;
+                elbowSlider.value = -60;
+                wristSlider.value = 20;
+                finger1Slider.value = 30;
+                finger2Slider.value = 30;
+                updateRobotFromSliders();
+            }
+            
+            function animateRobot() {
+                if (!activeRobot) return;
+                const t = performance.now() * 0.002;
+                
+                const autoBaseRad = Math.sin(t * 0.5) * 0.5;
+                const autoShoulderRad = 0.4 + Math.sin(t) * 0.3;
+                const autoElbowRad = -1.0 + Math.cos(t * 0.9) * 0.5;
+                const autoWristRad = 0.2 + Math.sin(t * 1.3) * 0.3;
+                const fingerAuto = 0.4 + Math.sin(t * 1.8) * 0.3;
+                
+                activeRobot.parts.baseJoint.rotation.y = autoBaseRad;
+                activeRobot.parts.shoulderGroup.rotation.x = autoShoulderRad;
+                activeRobot.parts.elbowGroup.rotation.x = autoElbowRad;
+                activeRobot.parts.wristGroup.rotation.x = autoWristRad;
+                activeRobot.parts.finger1Group.rotation.x = fingerAuto;
+                activeRobot.parts.finger2Group.rotation.x = fingerAuto;
+                
+                baseSlider.value = Math.round((autoBaseRad * 180 / Math.PI));
+                shoulderSlider.value = Math.round((autoShoulderRad * 180 / Math.PI));
+                elbowSlider.value = Math.round((autoElbowRad * 180 / Math.PI));
+                wristSlider.value = Math.round((autoWristRad * 180 / Math.PI));
+                finger1Slider.value = Math.round((fingerAuto * 180 / Math.PI));
+                finger2Slider.value = Math.round((fingerAuto * 180 / Math.PI));
+            }
+            
+            function animateSolar() {
+                if (!activeSolar) return;
+                const speed = parseFloat(orbitSpeedSlider.value);
+                const time = performance.now() * 0.001 * speed;
+                
+                activeSolar.planets.planet1Orbit.rotation.y = time * 0.8;
+                activeSolar.planets.planet2Orbit.rotation.y = time * 0.45;
+                activeSolar.planets.planet3Orbit.rotation.y = time * 0.3;
+                activeSolar.planets.moon1Orbit.rotation.y = time * 2.2;
+                activeSolar.planets.moon2aOrbit.rotation.y = time * 2.8;
+                activeSolar.planets.moon2bOrbit.rotation.y = time * 3.2;
+                activeSolar.planets.moon3Orbit.rotation.y = time * 2.0;
+            }
+            
+            function animateShark() {
+                if (!activeShark) return;
+                const speed = parseFloat(swimSpeedSlider.value);
+                const t = performance.now() * 0.003 * speed;
+                
+                activeShark.joints.head.rotation.x = Math.sin(t) * 0.4;
+                activeShark.joints.tail.rotation.z = Math.sin(t * 1.5) * 0.6;
+                activeShark.joints.leftFin.rotation.z = 0.5 + Math.sin(t * 2.2) * 0.4;
+                activeShark.joints.rightFin.rotation.z = -0.5 + Math.cos(t * 2.2) * 0.4;
+                activeShark.group.position.y = -0.5 + Math.sin(t * 1.2) * 0.1;
+                activeShark.group.rotation.z = Math.sin(t * 1.1) * 0.1;
+            }
+            
+            // --- Cambio de escena ---
+            function switchTo(sceneType) {
+                clearScene();
+                
+                if (sceneType === 'robot') {
+                    const robot = createRobotArm();
+                    activeRobot = robot;
+                    currentSceneGroup = robot.group;
+                    updateRobotFromSliders();
+                    robotDiv.style.display = 'block';
+                    solarDiv.style.display = 'none';
+                    sharkDiv.style.display = 'none';
+                    camera.setTarget(new BABYLON.Vector3(0, 1.5, 0));
+                    camera.radius = 10;
+                    camera.alpha = -Math.PI / 3;
+                    camera.beta = Math.PI / 4;
+                    
+                } else if (sceneType === 'solar') {
+                    const solar = createSolarSystem();
+                    activeSolar = solar;
+                    currentSceneGroup = solar.group;
+                    robotDiv.style.display = 'none';
+                    solarDiv.style.display = 'block';
+                    sharkDiv.style.display = 'none';
+                    camera.setTarget(new BABYLON.Vector3(0, 0, 0));
+                    camera.radius = 14;
+                    camera.alpha = -Math.PI / 3;
+                    camera.beta = Math.PI / 5;
+                    
+                } else if (sceneType === 'shark') {
+                    const shark = createShark();
+                    activeShark = shark;
+                    currentSceneGroup = shark.group;
+                    robotDiv.style.display = 'none';
+                    solarDiv.style.display = 'none';
+                    sharkDiv.style.display = 'block';
+                    camera.setTarget(new BABYLON.Vector3(0, 0, 0));
+                    camera.radius = 8;
+                    camera.alpha = -Math.PI / 4;
+                    camera.beta = Math.PI / 5;
+                }
+            }
+            
+            // --- Event listeners ---
+            selector.addEventListener('change', (e) => {
+                currentType = e.target.value;
+                switchTo(currentType);
+            });
+            
+            resetBtn.addEventListener('click', resetRobot);
+            
+            const sliders = [baseSlider, shoulderSlider, elbowSlider, wristSlider, finger1Slider, finger2Slider];
+            sliders.forEach(slider => {
+                slider.addEventListener('input', () => {
+                    if (currentType === 'robot' && activeRobot) updateRobotFromSliders();
+                });
+            });
+            
+            // --- Bucle de animación ---
+            engine.runRenderLoop(() => {
+                if (currentType === 'robot') {
+                    animateRobot();
+                } else if (currentType === 'solar') {
+                    animateSolar();
+                } else if (currentType === 'shark') {
+                    animateShark();
+                }
+                scene.render();
+            });
+            
+            // --- Inicializar ---
+            switchTo('robot');
+            
+            // Redimensionamiento
+            window.addEventListener('resize', () => {
+                engine.resize();
+            });
+            
+            console.log('Babylon.js: Aplicación iniciada correctamente');
+        })();
+    </script>
+</body>
+</html>
